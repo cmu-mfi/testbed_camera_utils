@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model
+  href="http://download.ros.org/schema/package_format3.xsd"
+  schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+    <name>testbed_camera_utils</name>
+    <version>0.0.1</version>
+    <description>
+        Testbed Camera Utilities
+    </description>
+
+    <maintainer email="klz1@andrew.cmu.edu">Kevin Zhang</maintainer>
+
+    <license>MIT</license>
+
+    <author email="klz1@andrew.cmu.edu">Kevin Zhang</author>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <exec_depend>geometry_msgs</exec_depend>
+    <exec_depend>std_msgs</exec_depend>
+    <exec_depend>std_srvs</exec_depend>
+    <exec_depend>message_runtime</exec_depend>
+    <exec_depend>sensor_msgs</exec_depend>
+</package>
+

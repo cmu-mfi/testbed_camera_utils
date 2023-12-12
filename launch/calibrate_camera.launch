@@ -1,0 +1,9 @@
+<launch>
+    <arg name="namespace" default="yk_creator"/>
+    <group ns="$(arg namespace)">
+        <node pkg="testbed_camera_utils" name="calibrate_camera" type="calibrate_camera.py" output="screen">
+            <param name="namespace" value="$(arg namespace)"/>
+            <param name="root_pwd" value="$(find testbed_camera_utils)"/>
+        </node>
+    </group>
+</launch>
