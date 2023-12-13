@@ -95,7 +95,7 @@ class AMRDetector:
                 center_idx += 1
                 amr_center.append([center_point_in_world.x, center_point_in_world.y, center_point_in_world.z])
 
-            if len(amr_center) == 4:
+            if len(amr_center) == 4 and not np.any(np.isnan(amr_center)):
                 true_amr_center = np.mean(np.array(amr_center),axis=0)
                 true_amr_center[2] = 0.2
             elif len(amr_center) >= 2:
@@ -104,11 +104,12 @@ class AMRDetector:
                     x = (center_points_in_world[69][0] + center_points_in_world[45][0])/2
                     z = 0.2
                     true_amr_center = np.array([x,y,z])
-                if 37 in ids and 58 in ids:
-                    y = (center_points_in_world[37][1] + center_points_in_world[58][1])/2
-                    x = (center_points_in_world[37][0] + center_points_in_world[58][0])/2
-                    z = 0.2
-                    true_amr_center = np.array([x,y,z])
+                if np.any(np.isnan(true_amr_center)):
+                    if 37 in ids and 58 in ids:
+                        y = (center_points_in_world[37][1] + center_points_in_world[58][1])/2
+                        x = (center_points_in_world[37][0] + center_points_in_world[58][0])/2
+                        z = 0.2
+                        true_amr_center = np.array([x,y,z])
             amr_angle = 0
             
             if 37 in ids:
@@ -128,7 +129,7 @@ class AMRDetector:
                 angle = np.arctan2(adjusted_point_69[1], adjusted_point_69[0]) - np.pi*3/4
                 amr_angle = angle * 180 / np.pi
             
-            if np.any(np.isnan(true_amr_center)):
+            if np.any(np.isnan(true_amr_center)) or (true_amr_center[0] == 0 and true_amr_center[1] == 0):
                 pass
             else:
                 pose = Pose2D()

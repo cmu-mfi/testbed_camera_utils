@@ -1,5 +1,5 @@
 <launch>
-    <arg name="namespace" default="yk_builder"/>
+    <arg name="namespace" default="yk_creator"/>
     <group ns="$(arg namespace)">
         <node pkg="testbed_camera_utils" name="detect_amr" type="detect_amr.py" output="screen">
             <param name="namespace" value="$(arg namespace)"/>
