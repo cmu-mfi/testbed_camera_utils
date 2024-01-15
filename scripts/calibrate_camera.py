@@ -14,10 +14,13 @@ from geometry_msgs.msg import Pose
 
 from autolab_core import RigidTransform
 
-def get_object_center_point_in_world(image_x, image_y, depth_image, namespace, intrinsics):
+def get_object_center_point_in_world(image_x, image_y, depth_image, namespace, intrinsics, camera_type):
 
-    object_center = Point(np.array([image_x, image_y]), namespace + '_azure_kinect_overhead')
-    object_depth = np.mean(depth_image[image_y-1:image_y+1, image_x-1:image_x+1])
+    object_center = Point(np.array([image_x, image_y]), namespace + '_'+camera_type+'_overhead')
+    if camera_type == 'realsense':
+        object_depth = np.mean(depth_image[image_y-1:image_y+1, image_x-1:image_x+1]) / 1000.
+    else:
+        object_depth = np.mean(depth_image[image_y-1:image_y+1, image_x-1:image_x+1])
 
     return intrinsics.deproject_pixel(object_depth, object_center)
 
@@ -58,8 +61,8 @@ def estimatePoseSingleMarkers(corners, marker_size, mtx, distortion):
         trash.append(nada)
     return rvecs, tvecs, trash
 
-def save_camera_intrinsics(file_path, namespace, camera_info):
-    intrinsics_str = '{"_frame": "'+namespace+'_azure_kinect_overhead", "_fx": '+ str(camera_info.K[0]) + \
+def save_camera_intrinsics(file_path, namespace, camera_info, camera_type):
+    intrinsics_str = '{"_frame": "'+namespace+'_'+camera_type+'_overhead", "_fx": '+ str(camera_info.K[0]) + \
                        ', "_fy": '+ str(camera_info.K[4]) + ', "_cx": '+ str(camera_info.K[2]) + \
                        ', "_cy": '+ str(camera_info.K[5]) + ', "_skew": 0.0, "_height": '+ \
                        str(camera_info.height) + ', "_width": '+ str(camera_info.width) + ', "_K": 0}'
@@ -75,6 +78,8 @@ def run():
     print(namespace)
     root_pwd = rospy.get_param("calibrate_camera/root_pwd")
     print(root_pwd)
+    camera_type = rospy.get_param("calibrate_camera/camera_type")
+    print(camera_type)
     
     T_aruco_ee = RigidTransform.load(root_pwd+'/config/aruco_ee.tf')
 
@@ -83,15 +88,20 @@ def run():
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_100)  # Use 5x5 dictionary to find markers
     parameters = aruco.DetectorParameters()  # Marker detection parameters
     detector = aruco.ArucoDetector(dictionary, parameters)
-    camera_info = rospy.wait_for_message('/'+namespace+'/rgb/camera_info', CameraInfo)
-    save_camera_intrinsics(root_pwd+'/calib/'+namespace+'_azure_kinect_intrinsics.intr', namespace, camera_info)
-    print('Saved camera intrinsics to ' + root_pwd+'/calib/'+namespace+'_azure_kinect_intrinsics.intr')
-    intrinsics = CameraIntrinsics.load(root_pwd+'/calib/'+namespace+'_azure_kinect_intrinsics.intr')
+    if camera_type == 'azure_kinect':  
+        camera_info = rospy.wait_for_message('/'+namespace+'/rgb/camera_info', CameraInfo)
+    elif camera_type == 'realsense':
+        camera_info = rospy.wait_for_message('/camera/color/camera_info', CameraInfo)
+    save_camera_intrinsics(root_pwd+'/calib/'+namespace+'_'+camera_type+'_intrinsics.intr', namespace, camera_info, camera_type)
+    print('Saved camera intrinsics to ' + root_pwd+'/calib/'+namespace+'_'+camera_type+'_intrinsics.intr')
+    intrinsics = CameraIntrinsics.load(root_pwd+'/calib/'+namespace+'_'+camera_type+'_intrinsics.intr')
     camera_matrix = np.array(camera_info.K).reshape((3,3))
-
     while True:
         try:
-            rgb_image_msg = rospy.wait_for_message('/'+namespace+'/rgb/image_rect_color', Image)
+            if camera_type == 'azure_kinect':
+                rgb_image_msg = rospy.wait_for_message('/'+namespace+'/rgb/image_rect_color', Image)
+            elif camera_type == 'realsense':
+                rgb_image_msg = rospy.wait_for_message('/camera/color/image_raw', Image)
             rgb_cv_image = bridge.imgmsg_to_cv2(rgb_image_msg, desired_encoding='bgr8')
             gray = cv2.cvtColor(rgb_cv_image, cv2.COLOR_BGR2GRAY)  # Change grayscale
 
@@ -101,7 +111,10 @@ def run():
                 continue
             depth_images = []
             for i in range(5):
-                depth_image_message = rospy.wait_for_message('/'+namespace+'/depth_to_rgb/hw_registered/image_rect', Image)
+                if camera_type == 'azure_kinect':
+                    depth_image_message = rospy.wait_for_message('/'+namespace+'/depth_to_rgb/hw_registered/image_rect', Image)
+                elif camera_type == 'realsense':
+                    depth_image_message = rospy.wait_for_message('/camera/aligned_depth_to_color/image_raw', Image)
                 depth_image = bridge.imgmsg_to_cv2(depth_image_message, desired_encoding='passthrough')
                 depth_images.append(depth_image)
 
@@ -118,21 +131,20 @@ def run():
                 corner_points = []
 
                 for corner_point in range(4):
-                  corner_point_in_world = get_object_center_point_in_world(new_corner[corner_point,0], new_corner[corner_point,1], depth_image, namespace, intrinsics)
+                  corner_point_in_world = get_object_center_point_in_world(new_corner[corner_point,0], new_corner[corner_point,1], depth_image, namespace, intrinsics, camera_type)
                   corner_points.append([corner_point_in_world.x, corner_point_in_world.y, corner_point_in_world.z])
                 corner_points_in_world.append(corner_points)
 
             center_points_in_world = []
             for center in centers:
               for depth_image in depth_images:
-                center_point_in_world = get_object_center_point_in_world(center[0], center[1], depth_image, namespace, intrinsics)
+                center_point_in_world = get_object_center_point_in_world(center[0], center[1], depth_image, namespace, intrinsics, camera_type)
                 center_points_in_world.append([center_point_in_world.x, center_point_in_world.y, center_point_in_world.z])
             center_point_in_world = np.mean(center_points_in_world, axis=0)
             print(center_point_in_world)
-
             T_aruco_camera = RigidTransform(rotation=np.array(matrix[:3,:3]), 
                                             translation = np.array(center_point_in_world), 
-                                            from_frame='aruco', to_frame=namespace + '_azure_kinect_overhead')
+                                                from_frame='aruco', to_frame=namespace + '_'+camera_type+'_overhead')
             print(T_aruco_camera)
 
             try:
@@ -153,8 +165,9 @@ def run():
 
                 T_camera_world = T_aruco_world * T_aruco_camera.inverse()
                 print(T_camera_world)
-                T_camera_world.save(root_pwd+'/calib/'+namespace+'_azure_kinect_overhead_world.tf')
-                print('Saved camera extrinsics to ' + root_pwd+'/calib/'+namespace+'_azure_kinect_overhead_world.tf')
+                
+                T_camera_world.save(root_pwd+'/calib/'+namespace+'_'+camera_type+'_overhead_world.tf')
+                print('Saved camera extrinsics to ' + root_pwd+'/calib/'+namespace+'_'+camera_type+'_overhead_world.tf')
                 break
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
                 print(e)
